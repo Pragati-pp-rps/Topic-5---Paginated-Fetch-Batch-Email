@@ -1,0 +1,246 @@
+{
+  "name": "Topic 5 - Paginated Fetch Batch Email (Pagination Error Fixed)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "9938caa7-0372-477e-a824-bf8743fc6985",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        4288,
+        2208
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ \"https://jsonplaceholder.typicode.com/users?_limit=5&_page=\" + $json.page }}",
+        "options": {}
+      },
+      "id": "7e0fc48d-8927-4fad-8a80-ab59d3e4a393",
+      "name": "Fetch Paginated Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4688,
+        2192
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "batchSize": "5",
+        "options": {}
+      },
+      "id": "99b913b1-497a-4af1-9e30-c94a6781d39c",
+      "name": "Split In Batches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5184,
+        2208
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://jsonplaceholder.typicode.com/posts",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ to: $json.email, name: $json.name, subject: \"Welcome from n8n\", message: \"Simulated email for \" + $json.name, userId: $json.id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f3c5e494-1f26-4046-8292-fe845c78de42",
+      "name": "Send Email (Simulated HTTP)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5408,
+        2384
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "id": "a603b982-b293-468f-982d-73038600a987",
+      "name": "Rate Limit Pause",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5840,
+        2384
+      ],
+      "webhookId": "945fa020-7dbd-4750-87bc-6cb4d23ade9b"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().filter(i => i.json && i.json.id && i.json.email).map((item,i)=>({json:{...item.json,recordIndex:i+1}}));"
+      },
+      "id": "3b1e4d99-62e1-4e6e-b02e-8ad06d3b4c3d",
+      "name": "Prepare User Records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4928,
+        2208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item=>{const x=item.json;const ok=!!x.id&&!x.error;return {json:{status:ok?'Sent':'Failed',responseId:x.id??null,error:ok?'':String(x.error?.message??x.message??'Missing response ID')}};});"
+      },
+      "id": "9bc40ef7-8636-472c-80a9-e55714c73d91",
+      "name": "Check Email Simulation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5616,
+        2384
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items=$input.all();const totalSucceeded=items.filter(i=>i.json.status==='Sent').length;const totalFailed=items.filter(i=>i.json.status==='Failed').length;return [{json:{totalRecords:$('Prepare User Records').all().length,totalProcessed:items.length,totalSucceeded,totalFailed,batchSize:5,waitSeconds:2,note:'Emails were simulated via JSONPlaceholder; no actual messages sent.'}}];"
+      },
+      "id": "64eeffab-1485-4d59-8b0d-a97265383075",
+      "name": "Execution Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5840,
+        2128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// JSONPlaceholder /users contains 10 demonstration users.\n// Fetch two pages of five records each, without the version-sensitive HTTP pagination option.\nreturn [1,2].map(page => ({json:{page}}));"
+      },
+      "id": "c8a4ac85-5da3-48d3-9c65-5cce5001deaf",
+      "name": "Generate Page Requests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4448,
+        2192
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Generate Page Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Paginated Users": {
+      "main": [
+        [
+          {
+            "node": "Prepare User Records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare User Records": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split In Batches": {
+      "main": [
+        [
+          {
+            "node": "Execution Summary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email (Simulated HTTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email (Simulated HTTP)": {
+      "main": [
+        [
+          {
+            "node": "Check Email Simulation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Simulation": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit Pause",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rate Limit Pause": {
+      "main": [
+        [
+          {
+            "node": "Split In Batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Page Requests": {
+      "main": [
+        [
+          {
+            "node": "Fetch Paginated Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "80c4ca61-8153-4c79-ae52-58f696ae9f8b",
+  "meta": {
+    "instanceId": "a03c7678428ef19ededbf912f16f7d5798ec7b9ab4c17f2a2def6a9e791e7215"
+  },
+  "nodeGroups": [],
+  "id": "tZUIBtdaMoCOnQX2",
+  "tags": []
+}
